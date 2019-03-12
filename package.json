@@ -1,0 +1,14 @@
+{
+  "name": "node",
+  "version": "1.0.0",
+  "description": "Some known-page-for-investors-and-startups scrapper tool using Puppeteer",
+  "main": "index.js",
+  "repository": "https://github.com/cymerrad/page-for-investors-and-startups-scrapper",
+  "author": "Radosław Cymer",
+  "license": "MIT",
+  "private": false,
+  "devDependencies": {
+    "puppeteer": "^1.13.0",
+    "typescript": "^3.3.3333"
+  }
+}
