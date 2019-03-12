@@ -1,3 +1,4 @@
+import fs from "fs";
 import puppeteer from "puppeteer";
 
 const modeDebug = true;
@@ -203,6 +204,9 @@ async function scrapeAllPossibleData(
   return data;
 }
 
+const angelList = "blockchains";
+const address = "https://angel.co/" + angelList;
+
 (async () => {
   const browser = await puppeteer.launch({
     args: ["--no-sandbox", "--disable-setuid-sandbox"],
@@ -211,13 +215,15 @@ async function scrapeAllPossibleData(
   const page = await browser.newPage();
   await page.setViewport(dimensions);
 
-  await page.goto("https://angel.co/blockchains", {
+  await page.goto(address, {
     waitUntil: "networkidle0"
   });
 
   try {
     let data = await scrapeAllPossibleData(page);
-    console.log(data);
+    const fileName = angelList + ".json";
+    fs.writeFileSync(fileName, JSON.stringify(data));
+    console.log(`Wrote to ${fileName}`);
   } catch (err) {
     console.log("Error, screenshoting the page");
 
