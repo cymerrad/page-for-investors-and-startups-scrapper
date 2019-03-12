@@ -8,7 +8,9 @@
   "license": "MIT",
   "private": false,
   "devDependencies": {
+    "@types/async": "^2.4.1",
     "@types/puppeteer": "^1.12.2",
+    "async": "^2.6.2",
     "puppeteer": "^1.13.0",
     "typescript": "^3.3.3333"
   },

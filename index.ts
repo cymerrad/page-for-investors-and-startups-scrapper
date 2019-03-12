@@ -1,3 +1,4 @@
+import asynch from "async";
 import fs from "fs";
 import puppeteer from "puppeteer";
 
@@ -163,7 +164,7 @@ async function scrapeAllPossibleData(
   let height = 0;
 
   let lastBatch = await page.evaluate(getLastChildData, resultsHolderSelector);
-  debug("Last batch", lastBatch);
+  // debug("Last batch", lastBatch);
   while (lastBatch && lastBatch.length > 0) {
     data.push(...lastBatch);
 
@@ -191,7 +192,7 @@ async function scrapeAllPossibleData(
     debug("Loaded more content");
 
     lastBatch = await page.evaluate(getLastChildData, resultsHolderSelector);
-    debug("Last batch", lastBatch);
+    // debug("Last batch", lastBatch);
   }
 
   debug("Exiting the loop");
@@ -210,6 +211,7 @@ const address = "https://angel.co/" + angelList;
 (async () => {
   const browser = await puppeteer.launch({
     args: ["--no-sandbox", "--disable-setuid-sandbox"],
+    userDataDir: "./user_data",
     headless: false
   });
   const page = await browser.newPage();
@@ -219,9 +221,78 @@ const address = "https://angel.co/" + angelList;
     waitUntil: "networkidle0"
   });
 
+  var data: any[] = [];
+  var pairs: ({} | undefined)[] = []; // compatibility hack
+
   try {
-    let data = await scrapeAllPossibleData(page);
+    data = await scrapeAllPossibleData(page);
     const fileName = angelList + ".json";
+
+    let count = data.length;
+    let counter = 1;
+
+    asynch.mapSeries(
+      data,
+      async company => {
+        debug("Fixing URL of", company.Company, `${counter}/${count}`);
+        let companyPage = await browser.newPage();
+        await companyPage.goto(company.Link, { waitUntil: "networkidle0" });
+
+        debug("Waiting for url to appear");
+        await companyPage.waitForFunction(
+          "document.getElementsByClassName('company_url')[0]",
+          { polling: 1000, timeout: 0 }
+        );
+
+        let trueCompanyUrl = await companyPage.evaluate(trueLinkClassName => {
+          var potentialUrls = document.getElementsByClassName(
+            trueLinkClassName
+          );
+          if (potentialUrls.length === 0) {
+            return undefined;
+          } else {
+            return (potentialUrls[0] as any).href;
+          }
+        }, "company_url");
+
+        if (trueCompanyUrl === undefined) {
+          // one more try
+          trueCompanyUrl = await companyPage.evaluate(trueLinkClassName => {
+            var potentialUrls = document.getElementsByClassName(
+              trueLinkClassName
+            );
+            if (potentialUrls.length === 0) {
+              return undefined;
+            } else {
+              return (potentialUrls[0] as any).href;
+            }
+          }, "company_url");
+          if (trueCompanyUrl === undefined) {
+            debug("We failed on", company.Company);
+          }
+        }
+
+        const pair = [company.Link, trueCompanyUrl];
+        company.Link = trueCompanyUrl; // attempt at overwriting?
+
+        companyPage.close();
+
+        debug(`${pair[0]} -> ${pair[1]}`);
+        return pair;
+      },
+      (err, pairz) => {
+        let suffix = "";
+        if (err) {
+          console.log("Error in mapSeries", err);
+          suffix = "_errored_out";
+        }
+
+        fs.writeFileSync(`pairs${suffix}.json`, JSON.stringify(pairz));
+        if (pairz !== undefined) pairs = pairz;
+      }
+    );
+
+    fs.writeFileSync(angelList + `_pairs.json`, JSON.stringify(pairs));
     fs.writeFileSync(fileName, JSON.stringify(data));
     console.log(`Wrote to ${fileName}`);
   } catch (err) {
@@ -233,5 +304,8 @@ const address = "https://angel.co/" + angelList;
     });
 
     console.log(err);
+
+    fs.writeFileSync("ERROR_pairs.json", JSON.stringify(pairs));
+    fs.writeFileSync("ERROR_data", JSON.stringify(data));
   }
 })();
