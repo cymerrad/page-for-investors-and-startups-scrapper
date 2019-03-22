@@ -35,6 +35,19 @@ async function scrollDown(
   return [height, pageHeight];
 }
 
+const hashCode = function(string: String) {
+  var hash = 0,
+    i,
+    chr;
+  if (string.length === 0) return hash;
+  for (i = 0; i < string.length; i++) {
+    chr = string.charCodeAt(i);
+    hash = (hash << 5) - hash + chr;
+    hash |= 0; // Convert to 32bit integer
+  }
+  return hash;
+};
+
 interface CompanyRow {
   Company: string;
   Link: string;
@@ -164,6 +177,7 @@ async function scrapeAllPossibleData(
   let height = 0;
 
   let lastBatch = await page.evaluate(getLastChildData, resultsHolderSelector);
+  let lastBatchHash = hashCode(JSON.stringify(lastBatch));
   // debug("Last batch", lastBatch);
   while (lastBatch && lastBatch.length > 0) {
     data.push(...lastBatch);
@@ -205,7 +219,7 @@ async function scrapeAllPossibleData(
   return data;
 }
 
-const angelList = "blockchains";
+const angelList = "bitcoin-exchange";
 const address = "https://angel.co/" + angelList;
 
 (async () => {
@@ -227,11 +241,13 @@ const address = "https://angel.co/" + angelList;
   try {
     data = await scrapeAllPossibleData(page);
     const fileName = angelList + ".json";
+    fs.writeFileSync(fileName, JSON.stringify(data));
+    console.log(`Wrote to ${fileName}`);
 
     let count = data.length;
     let counter = 1;
 
-    asynch.mapSeries(
+    await asynch.mapSeries(
       data,
       async company => {
         debug("Fixing URL of", company.Company, `${counter}/${count}`);
@@ -278,6 +294,7 @@ const address = "https://angel.co/" + angelList;
         companyPage.close();
 
         debug(`${pair[0]} -> ${pair[1]}`);
+        counter++;
         return pair;
       },
       (err, pairz) => {
@@ -292,9 +309,9 @@ const address = "https://angel.co/" + angelList;
       }
     );
 
-    fs.writeFileSync(angelList + `_pairs.json`, JSON.stringify(pairs));
-    fs.writeFileSync(fileName, JSON.stringify(data));
-    console.log(`Wrote to ${fileName}`);
+    let pairsFileName = angelList + `_pairs.json`;
+    fs.writeFileSync(pairsFileName, JSON.stringify(pairs));
+    console.log("Wrote even more to", pairsFileName);
   } catch (err) {
     console.log("Error, screenshoting the page");
 
